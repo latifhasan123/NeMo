@@ -1,0 +1,6 @@
+fastapi
+uvicorn
+nemoguardrails
+openai
+httpx
+pydantic

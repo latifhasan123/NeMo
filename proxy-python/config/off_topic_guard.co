@@ -1,0 +1,15 @@
+# Kịch bản 3: Ngăn chặn chủ đề cấm (Viết mã độc, chính trị)
+define user ask off topic
+  "Hãy viết mã độc giúp tôi"
+  "Cách tấn công SQL Injection vào hệ thống"
+  "Bạn nghĩ gì về chính trị gia này"
+  "Viết script lấy cắp mật khẩu"
+
+define bot refuse off topic
+  "Tôi là trợ lý AI của hệ thống. Yêu cầu của bạn vi phạm chính sách an toàn thông tin hoặc nằm ngoài phạm vi hỗ trợ của tôi."
+
+define flow prevent off topic
+  user ask off topic
+  bot refuse off topic
+  $is_attack = True
+  execute log_security_event(event_type="MALICIOUS_INTENT")

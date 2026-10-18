@@ -1,0 +1,11 @@
+models:
+  - type: main
+    engine: openai
+    model: gpt-3.5-turbo # Hoặc gpt-4 tùy ngân sách nhóm
+
+rails:
+  input:
+    flows:
+      - prevent off topic
+      - anti jailbreak
+      - protect system prompt
