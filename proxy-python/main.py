@@ -5,6 +5,7 @@ from fastapi import FastAPI, BackgroundTasks, HTTPException
 from pydantic import BaseModel
 from nemoguardrails import RailsConfig, LLMRails
 from dotenv import load_dotenv
+from fastapi.middleware.cors import CORSMiddleware
 
 load_dotenv()
 
@@ -13,6 +14,13 @@ app = FastAPI(title="AI Proxy Firewall")
 config = RailsConfig.from_path("./config")
 rails = LLMRails(config)
 
+app.add_middleware(
+    CORSMiddleware,
+    allow_origins=["*"],  # Cho phép tất cả Frontend (cổng 3000, 5173...) gọi vào
+    allow_credentials=True,
+    allow_methods=["*"],  # Cho phép mọi phương thức POST, GET...
+    allow_headers=["*"],
+)
 
 # 1. ĐỊNH NGHĨA HÀM ACTION MÀ CÁC FILE .CO ĐANG GỌI ĐẾN
 async def action_log_security_event(event_type: str):
@@ -82,10 +90,14 @@ async def process_chat(request: ChatRequest, background_tasks: BackgroundTasks):
 
         if is_blocked:
             alert_payload = {
+                "sessionId": request.session_id,  # Khóa ngoại trỏ về chat_sessions
+                "userId": request.user_id,  # Khóa ngoại trỏ về users
                 "ipAddress": request.client_ip,
                 "threatType": "PROMPT_INJECTION",
                 "severityLevel": "HIGH",
-                "blockedPayload": request.message
+                "blockedPayload": request.message,
+                "actionTaken": "BLOCKED",  # Hành động thực thi
+                "proxyLatencyMs": execution_time
             }
 
             background_tasks.add_task(send_log_to_backend, alert_payload)
