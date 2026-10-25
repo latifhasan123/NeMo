@@ -1,0 +1,94 @@
+1. App.jsx
+ 
+- Chứa toàn bộ giao diện hiện tại
+ 
+2. PROXY_URL
+ 
+- Gửi câu hỏi sang Proxy Python
+ 
+3. ADMIN_API_URL
+ 
+- Lấy dữ liệu Dashboard
+ 
+4. sendMessage()
+ 
+- Gửi tin nhắn
+ 
+5. loadDashboard()
+ 
+- Lấy dữ liệu Dashboard
+ 
+6. validateChatResponse()
+ 
+- Kiểm tra dữ liệu từ Proxy
+ 
+7. validateDashboard()
+ 
+- Kiểm tra dữ liệu Dashboard
+
+Mục đích:
+
+Plain Text
+Khi bảo vệ bạn giải thích được code của mình.
+
+
+****Việc số 2
+
+Vẽ sơ đồ ra giấy
+
+Plain Text
+User
+↓
+React Frontend
+↓
+Proxy Python
+↓
+NeMo Guardrails
+↓
+LLM
+ 
+Proxy
+↓
+Spring Boot
+↓
+Database
+``
+
+Mục đích:
+Plain Text
+Hiểu luồng dữ liệu.
+
+
+****
+Việc số 3
+
+Đọc lại hàm:
+
+Plain Text
+sendMessage()
+
+và trả lời được 5 câu:
+
+Plain Text
+1. Ai gọi hàm này?
+ 
+2. Nó gửi dữ liệu đi đâu?
+ 
+3. Nó gửi dữ liệu gì?
+ 
+4. Nó nhận lại gì?
+ 
+5. Nó hiển thị lên đâu?
+
+Câu trả lời là:
+
+Plain Text
+1. User bấm gửi
+ 
+2. Gửi sang Proxy Python
+ 
+3. message, session_id, user_id
+ 
+4. response JSON
+ 
+5. messages trong giao diện chat
