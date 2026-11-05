@@ -3,16 +3,26 @@ import requests
 import json
 from fastapi import FastAPI, BackgroundTasks, HTTPException
 from pydantic import BaseModel
-from nemoguardrails import RailsConfig, LLMRails
-from dotenv import load_dotenv
 
+# 1. BẮT BUỘC PHẢI NẠP FILE .ENV VÀO HỆ THỐNG TRƯỚC
+from dotenv import load_dotenv
 load_dotenv()
+
+# 2. SAU KHI ĐÃ CÓ BIẾN MÔI TRƯỜNG, MỚI GỌI NEMOGUARDRAILS RA
+from nemoguardrails import RailsConfig, LLMRails
+from fastapi.middleware.cors import CORSMiddleware
 
 # Khởi tạo ứng dụng và nạp cấu hình Guardrails
 app = FastAPI(title="AI Proxy Firewall")
 config = RailsConfig.from_path("./config")
 rails = LLMRails(config)
-
+app.add_middleware(
+    CORSMiddleware,
+    allow_origins=["*"], # Cho phép tất cả các nguồn (hoặc cụ thể là "http://localhost:5173")
+    allow_credentials=True,
+    allow_methods=["*"], # Cho phép mọi method (bao gồm cả OPTIONS, POST, GET)
+    allow_headers=["*"],
+)
 
 # 1. ĐỊNH NGHĨA HÀM ACTION MÀ CÁC FILE .CO ĐANG GỌI ĐẾN
 async def action_log_security_event(event_type: str):
@@ -37,8 +47,8 @@ class ChatResponse(BaseModel):
     is_blocked: bool
     session_id: str
     response: str
-    block_reason: str = None
-    threat_type: str = None
+    block_reason: str | None = None
+    threat_type: str | None = None
     alert_logged: bool = False
     execution_time_ms: float
 
@@ -65,15 +75,17 @@ async def process_chat(request: ChatRequest, background_tasks: BackgroundTasks):
 
     try:
         # 1. Nhận kết quả thô từ Guardrails
-        raw_response = await rails.generate_async(
+        response = await rails.generate_async(
             messages=[{"role": "user", "content": request.message}]
         )
-
+        
+        # In ra màn hình bằng đúng tên biến để không bị lỗi 500
+        print("DEBUG KẾT QUẢ TỪ AI:", response)
         # 2. Trích xuất chính xác chuỗi text từ Dictionary
-        if isinstance(raw_response, dict):
-            response_text = raw_response.get("content", "")
+        if isinstance(response, dict):
+            response_text = response.get("content", "")
         else:
-            response_text = str(raw_response)
+            response_text = str(response)
 
         execution_time = round((time.time() - start_time) * 1000, 2)
 
