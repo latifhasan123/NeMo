@@ -25,9 +25,9 @@ app.add_middleware(
 )
 
 # 1. ĐỊNH NGHĨA HÀM ACTION MÀ CÁC FILE .CO ĐANG GỌI ĐẾN
-async def action_log_security_event(event_type: str):
-    # Hàm giả lập để hứng lệnh execute log_security_event từ file .co[cite: 6, 7, 8]
-    # Ta không code xử lý ở đây vì đã có luồng gửi log riêng bên dưới
+async def action_log_security_event(event_type: str = "", **kwargs):
+    # Hàm giả lập để hứng lệnh execute log_security_event từ file .co
+    # Thêm **kwargs để tránh TypeError nếu NeMo Guardrails truyền context ngầm định
     pass
 
 
@@ -69,28 +69,39 @@ def send_log_to_backend(payload: dict):
         print(f"-> [LỖI] Không thể kết nối Backend (Khả năng Nhóm trưởng chưa bật server): {e}\n")
 
 
+# Các cụm từ đặc trưng khi Guardrails chặn yêu cầu (từ các file .co)
+REFUSAL_PHRASES = [
+    "không thể bỏ qua các quy tắc bảo mật",
+    "bảo mật nghiêm ngặt",
+    "vi phạm chính sách an toàn",
+]
+
+
 @app.post("/api/v1/chat", response_model=ChatResponse)
 async def process_chat(request: ChatRequest, background_tasks: BackgroundTasks):
     start_time = time.time()
 
     try:
-        # 1. Nhận kết quả thô từ Guardrails
+        # 1. Nhận kết quả từ Guardrails (gọi tới LLM gemini-1.5-flash)
         response = await rails.generate_async(
             messages=[{"role": "user", "content": request.message}]
         )
         
-        # In ra màn hình bằng đúng tên biến để không bị lỗi 500
         print("DEBUG KẾT QUẢ TỪ AI:", response)
-        # 2. Trích xuất chính xác chuỗi text từ Dictionary
+
+        # 2. Trích xuất chính xác chuỗi text từ response
         if isinstance(response, dict):
             response_text = response.get("content", "")
         else:
             response_text = str(response)
 
+        if not response_text or not response_text.strip():
+            response_text = "Xin lỗi, hệ thống không thể xử lý yêu cầu lúc này."
+
         execution_time = round((time.time() - start_time) * 1000, 2)
 
-        # Kiểm tra từ khóa từ chối trong câu trả lời đã được trích xuất
-        is_blocked = "bảo mật" in response_text or "an toàn" in response_text
+        # 3. Kiểm tra xem câu trả lời có phải là câu từ chối của Guardrails hay không
+        is_blocked = any(phrase in response_text.lower() for phrase in REFUSAL_PHRASES)
 
         if is_blocked:
             alert_payload = {
@@ -122,4 +133,5 @@ async def process_chat(request: ChatRequest, background_tasks: BackgroundTasks):
         )
 
     except Exception as e:
+        print(f"\n[LỖI SERVER PROXY] Đã xảy ra lỗi: {e}\n")
         raise HTTPException(status_code=500, detail=str(e))

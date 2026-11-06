@@ -1,6 +1,8 @@
 fastapi
 uvicorn
 nemoguardrails
-openai
-httpx
+langchain-google-genai
+google-genai
+python-dotenv
+requests
 pydantic

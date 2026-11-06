@@ -1,11 +1,13 @@
 models:
   - type: main
     engine: google_genai
-    model: gemini-pro
+    model: gemini-1.5-flash
 
+# Tạm thời tắt phần rails để ưu tiên thông luồng chat trước theo yêu cầu của nhóm trưởng.
+# Sẽ mở lại khi hoàn thiện các kịch bản Colang (.co).
 # rails:
 #   input:
 #     flows:
 #       - prevent off topic
 #       - anti jailbreak
-#       - protect system promptpython -m uvicorn main:app --reload
+#       - protect system prompt
