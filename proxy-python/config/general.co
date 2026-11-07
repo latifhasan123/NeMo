@@ -1,0 +1,16 @@
+# Kịch bản Chào hỏi cơ bản
+define user express greeting
+  "xin chào"
+  "chào bạn"
+  "hello"
+  "hi"
+  "chào"
+  "alo"
+  "hey"
+
+define bot express greeting
+  "Xin chào! Tôi là trợ lý AI an toàn được bảo vệ bởi NeMo Guardrails. Tôi có thể hỗ trợ gì cho bạn hôm nay?"
+
+define flow greeting
+  user express greeting
+  bot express greeting

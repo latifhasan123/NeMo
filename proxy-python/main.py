@@ -1,12 +1,25 @@
+import sys
+import os
 import time
 import requests
 import json
 from fastapi import FastAPI, BackgroundTasks, HTTPException
 from pydantic import BaseModel
 
+# Cấu hình UTF-8 cho console Windows để tránh UnicodeEncodeError khi in tiếng Việt
+if sys.platform == "win32":
+    try:
+        sys.stdout.reconfigure(encoding="utf-8")
+        sys.stderr.reconfigure(encoding="utf-8")
+    except Exception:
+        pass
+
 # 1. BẮT BUỘC PHẢI NẠP FILE .ENV VÀO HỆ THỐNG TRƯỚC
 from dotenv import load_dotenv
 load_dotenv()
+
+# Yêu cầu NeMo Guardrails sử dụng framework LangChain cho Google GenAI
+os.environ["NEMOGUARDRAILS_LLM_FRAMEWORK"] = "langchain"
 
 # 2. SAU KHI ĐÃ CÓ BIẾN MÔI TRƯỜNG, MỚI GỌI NEMOGUARDRAILS RA
 from nemoguardrails import RailsConfig, LLMRails
@@ -24,11 +37,18 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
+@app.get("/")
+async def root():
+    return {
+        "status": "online",
+        "service": "AI Proxy Firewall (NeMo Guardrails)",
+        "docs_url": "/docs"
+    }
+
 # 1. ĐỊNH NGHĨA HÀM ACTION MÀ CÁC FILE .CO ĐANG GỌI ĐẾN
 async def action_log_security_event(event_type: str = "", **kwargs):
-    # Hàm giả lập để hứng lệnh execute log_security_event từ file .co
-    # Thêm **kwargs để tránh TypeError nếu NeMo Guardrails truyền context ngầm định
-    pass
+    # Hàm hứng lệnh execute log_security_event từ file .co
+    print(f"\n[NE-MO ACTION] Đã bắt được sự kiện bảo mật từ Colang: {event_type}")
 
 
 # Đăng ký hàm action vào hệ thống Guardrails
@@ -69,11 +89,23 @@ def send_log_to_backend(payload: dict):
         print(f"-> [LỖI] Không thể kết nối Backend (Khả năng Nhóm trưởng chưa bật server): {e}\n")
 
 
-# Các cụm từ đặc trưng khi Guardrails chặn yêu cầu (từ các file .co)
-REFUSAL_PHRASES = [
-    "không thể bỏ qua các quy tắc bảo mật",
-    "bảo mật nghiêm ngặt",
-    "vi phạm chính sách an toàn",
+# Bản đồ nhận diện câu từ chối từ kịch bản Colang (.co)
+SECURITY_CHECKS = [
+    {
+        "keyword": "không thể bỏ qua các quy tắc bảo mật",
+        "threat_type": "JAILBREAK",
+        "block_reason": "jailbreak_attempt_detected"
+    },
+    {
+        "keyword": "bảo mật nghiêm ngặt",
+        "threat_type": "PROMPT_LEAKAGE",
+        "block_reason": "prompt_leakage_detected"
+    },
+    {
+        "keyword": "vi phạm chính sách an toàn",
+        "threat_type": "MALICIOUS_INTENT",
+        "block_reason": "malicious_topic_detected"
+    }
 ]
 
 
@@ -82,12 +114,15 @@ async def process_chat(request: ChatRequest, background_tasks: BackgroundTasks):
     start_time = time.time()
 
     try:
-        # 1. Nhận kết quả từ Guardrails (gọi tới LLM gemini-1.5-flash)
+        # 1. Nhận kết quả từ Guardrails (gọi tới LLM gemini-1.5-flash hoặc chạy dialog flows)
         response = await rails.generate_async(
             messages=[{"role": "user", "content": request.message}]
         )
         
-        print("DEBUG KẾT QUẢ TỪ AI:", response)
+        try:
+            print("\nDEBUG KẾT QUẢ TỪ AI:", response)
+        except Exception:
+            pass
 
         # 2. Trích xuất chính xác chuỗi text từ response
         if isinstance(response, dict):
@@ -95,18 +130,27 @@ async def process_chat(request: ChatRequest, background_tasks: BackgroundTasks):
         else:
             response_text = str(response)
 
+        # Nếu response rỗng (do không có flow nào bắt được hoặc LLM không phản hồi), dùng fallback
         if not response_text or not response_text.strip():
-            response_text = "Xin lỗi, hệ thống không thể xử lý yêu cầu lúc này."
+            response_text = "Xin lỗi, hệ thống không thể xử lý yêu cầu lúc này. Vui lòng thử lại sau ít giây."
 
         execution_time = round((time.time() - start_time) * 1000, 2)
 
-        # 3. Kiểm tra xem câu trả lời có phải là câu từ chối của Guardrails hay không
-        is_blocked = any(phrase in response_text.lower() for phrase in REFUSAL_PHRASES)
+        # 3. Kiểm tra xem câu trả lời có khớp với kịch bản từ chối bảo mật không
+        lower_response = response_text.lower()
+        matched_check = None
+        for check in SECURITY_CHECKS:
+            if check["keyword"] in lower_response:
+                matched_check = check
+                break
 
-        if is_blocked:
+        if matched_check:
+            threat_type = matched_check["threat_type"]
+            block_reason = matched_check["block_reason"]
+
             alert_payload = {
                 "ipAddress": request.client_ip,
-                "threatType": "PROMPT_INJECTION",
+                "threatType": threat_type,
                 "severityLevel": "HIGH",
                 "blockedPayload": request.message
             }
@@ -118,8 +162,8 @@ async def process_chat(request: ChatRequest, background_tasks: BackgroundTasks):
                 is_blocked=True,
                 session_id=request.session_id,
                 response=response_text,
-                block_reason="prompt_injection_detected",
-                threat_type="PROMPT_INJECTION",
+                block_reason=block_reason,
+                threat_type=threat_type,
                 alert_logged=True,
                 execution_time_ms=execution_time
             )

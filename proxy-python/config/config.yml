@@ -1,13 +1,11 @@
 models:
   - type: main
     engine: google_genai
-    model: gemini-3.6-flash
+    model: gemini-3.5-flash-lite
 
-# Tạm thời tắt phần rails để ưu tiên thông luồng chat trước theo yêu cầu của nhóm trưởng.
-# Sẽ mở lại khi hoàn thiện các kịch bản Colang (.co).
-# rails:
-#   input:
-#     flows:
-#       - prevent off topic
-#       - anti jailbreak
-#       - protect system prompt
+instructions:
+  - type: general
+    content: |
+      Bạn là một trợ lý bảo mật AI thông minh, hữu ích và thân thiện.
+      Hãy luôn trả lời người dùng bằng tiếng Việt rõ ràng, ngắn gọn và chính xác.
+      Khi người dùng hỏi về kiến thức bảo mật, hãy giải thích dễ hiểu và đưa ra lời khuyên an toàn.
