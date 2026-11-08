@@ -1,0 +1,19 @@
+# File: anti_off_topic.co
+# Nhiệm vụ: Giữ AI chỉ nói về IT và Bảo mật, không trả lời chuyện ngoài lề
+
+define user ask off topic
+  "hướng dẫn nấu món phở bò Nam Định"
+  "kết quả trận bóng đá hôm nay"
+  "review bộ phim đang hot ở rạp"
+  "cách trang điểm đi tiệc"
+  "thời tiết hôm nay thế nào"
+  "hướng dẫn cách trồng cây cảnh"
+
+define bot refuse off topic
+  "Xin lỗi, tôi là Trợ lý AI chuyên biệt về An toàn thông tin. Tôi không thể hỗ trợ bạn các chủ đề nằm ngoài phạm vi công nghệ và bảo mật."
+
+define flow prevent off topic
+  user ask off topic
+  bot refuse off topic
+  $is_attack = True
+  execute log_security_event(event_type="OFF_TOPIC")

@@ -1,3 +1,5 @@
+# File: general.co
+
 # Kịch bản Chào hỏi cơ bản
 define user express greeting
   "xin chào"
@@ -15,7 +17,7 @@ define flow greeting
   user express greeting
   bot express greeting
 
-# Kịch bản Tư vấn An toàn Thông tin & Kiến thức bảo mật & Hội thoại tiếp nối
+# Kịch bản Tư vấn An toàn Thông tin (Đã xóa các câu hội thoại ngữ cảnh)
 define user ask security advice
   "vậy tôi có nên cung cấp thông tin cho một công an gọi video call cho tôi không"
   "có người tự xưng là công an gọi video call hoặc điện thoại đe dọa"
@@ -28,12 +30,6 @@ define user ask security advice
   "tôi có nên gửi mã OTP cho người khác không"
   "cú pháp của ngôn ngữ Colang được viết như thế nào"
   "giải thích cách hoạt động của NeMo Guardrails"
-  "bạn có thể ví dụ của bạn được không"
-  "cho tôi xin ví dụ cụ thể hơn"
-  "giải thích chi tiết hơn cho tôi"
-  "tại sao lại như vậy"
-  "bạn có biết tôi là ai không"
-  "tôi tên là gì"
 
 define flow security advice
   user ask security advice
