@@ -1,30 +1,28 @@
-function formatDate(value) {
-  if (!value) return 'Không rõ thời gian'
-  const date = new Date(value)
-  return Number.isNaN(date.getTime())
-    ? value
-    : new Intl.DateTimeFormat('vi-VN', {
-        dateStyle: 'short',
-        timeStyle: 'short',
-      }).format(date)
-}
+import React from 'react'
 
-// Một cảnh báo riêng biệt gồm mức độ, nội dung, IP và thời gian phát sinh.
-function SecurityAlert({ alert }) {
-  const severity = (alert.severity || 'medium').toLowerCase()
-
+export default function SecurityAlert({ content, reason }) {
   return (
-    <article className="alert-item">
-      <span className={`severity-dot ${severity}`} />
-      <div className="alert-copy">
-        <strong>{alert.label || 'Sự kiện bảo mật'}</strong>
-        <span>{alert.ipAddress || 'Không có IP'} · {formatDate(alert.createdAt)}</span>
+    <div style={{
+      background: '#fff5f5',
+      border: '1px solid #feb2b2',
+      borderRadius: '8px',
+      padding: '12px 16px',
+      color: '#c53030',
+      marginTop: '8px',
+      boxShadow: '0 2px 4px rgba(0,0,0,0.05)'
+    }}>
+      <div style={{ display: 'flex', alignItems: 'center', gap: '8px', fontWeight: 'bold', fontSize: '14px' }}>
+        <span>⚑</span>
+        <span>[BLOCKED] PROMPT INJECTION DETECTED</span>
       </div>
-      <span className={`severity-label ${severity}`}>
-        {alert.severity || 'MEDIUM'}
-      </span>
-    </article>
+      <p style={{ margin: '6px 0 0', fontSize: '13px', color: '#9b2c2c', lineHeight: 1.5 }}>
+        {content || 'Yêu cầu bị ngăn chặn do phát hiện nguy cơ tấn công an ninh thông tin.'}
+      </p>
+      {reason && (
+        <small style={{ display: 'block', marginTop: '6px', color: '#e53e3e', fontSize: '11px', fontStyle: 'italic' }}>
+          Mã kiểm duyệt: {reason}
+        </small>
+      )}
+    </div>
   )
 }
-
-export default SecurityAlert

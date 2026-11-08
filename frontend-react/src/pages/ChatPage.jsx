@@ -7,9 +7,18 @@ const suggestions = [
   'Tóm tắt vai trò của NeMo Guardrails.',
 ]
 
+function formatLatency(value) {
+  const milliseconds = Number(value)
+  if (!Number.isFinite(milliseconds) || milliseconds < 0) return ''
+  return milliseconds >= 1000
+    ? `${(milliseconds / 1000).toFixed(1)}s`
+    : `${Number(milliseconds.toFixed(1))}ms`
+}
+
 // Trang chat lo phần giao diện; trạng thái và gửi yêu cầu do App quản lý.
 function ChatPage({
   messages,
+  isLoadingHistory,
   draft,
   onDraftChange,
   isSending,
@@ -56,6 +65,17 @@ function ChatPage({
         </div>
 
         <div className="message-list" aria-live="polite">
+          {messages.length === 0 && (isLoadingHistory || !isSending) && (
+            <div className="empty-chat-state">
+              <div className="assistant-avatar" aria-hidden="true">✳</div>
+              <strong>{isLoadingHistory ? 'Đang tải lịch sử...' : 'Bắt đầu cuộc trò chuyện an toàn'}</strong>
+              <span>
+                {isLoadingHistory
+                  ? 'Đang lấy tin nhắn từ máy chủ.'
+                  : 'Gửi câu hỏi để được kiểm duyệt trước khi chuyển đến mô hình AI.'}
+              </span>
+            </div>
+          )}
           {messages.map((message) => (
             <MessageBubble message={message} key={message.id} />
           ))}
@@ -71,7 +91,7 @@ function ChatPage({
           <div ref={endOfMessages} />
         </div>
 
-        {messages.length === 1 && (
+        {messages.length === 0 && !isLoadingHistory && (
           <div className="suggestions">
             <span>GỢI Ý BẮT ĐẦU</span>
             <div className="suggestion-list">
@@ -104,21 +124,21 @@ function ChatPage({
             }}
             placeholder="Nhập tin nhắn... (Enter để gửi, Shift + Enter để xuống dòng)"
             rows={2}
-            disabled={isSending}
+            disabled={isSending || isLoadingHistory}
           />
           <div className="composer-footer">
             <div className="composer-hint">
               <span aria-hidden="true">◇</span> Được bảo vệ bởi NeMo Guardrails
               {lastLatency !== null && (
                 <span className="latency-hint">
-                  Proxy xử lý: {lastLatency} ms
+                  Proxy xử lý: {formatLatency(lastLatency)}
                 </span>
               )}
             </div>
             <button
               className="send-button"
               type="submit"
-              disabled={!draft.trim() || isSending}
+              disabled={!draft.trim() || isSending || isLoadingHistory}
             >
               {isSending ? 'Đang gửi...' : 'Gửi tin nhắn'}
               <span aria-hidden="true">↑</span>

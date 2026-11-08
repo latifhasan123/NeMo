@@ -49,14 +49,21 @@ The app expects the following local services by default:
 | Service | Default URL | Purpose |
 | --- | --- | --- |
 | Python Guardrails proxy | `http://localhost:8000/api/v1/chat` | Chat request/response |
-| Spring Boot API | `http://localhost:8080/api/admin/dashboard` | Admin metrics and security alerts |
+| Spring Boot authentication | `http://localhost:8080/api/auth/login` | Login and JWT |
+| Spring Boot audit API | `http://localhost:8080/api/v1/alerts` | Admin security alerts |
+| Spring Boot chat history | `http://localhost:8080/api/v1/chat/sessions` | User chat sessions and history |
 
 Override the URLs with Vite environment variables in a local `.env` file:
 
 ```dotenv
+VITE_API_BASE_URL=http://localhost:8080
 VITE_PROXY_URL=http://localhost:8000/api/v1/chat
 VITE_DEMO_USER_ID=usr_123
-VITE_ADMIN_API_URL=http://localhost:8080/api/admin/dashboard
+VITE_AUTH_API_URL=http://localhost:8080/api/auth/login
+VITE_REGISTER_API_URL=http://localhost:8080/api/auth/register
+VITE_SESSIONS_API_URL=http://localhost:8080/api/v1/chat/sessions
+VITE_MESSAGES_API_URL=http://localhost:8080/api/v1/chat/messages
+VITE_ADMIN_API_URL=http://localhost:8080/api/v1/alerts
 ```
 
 Restart Vite after changing `.env`. Do not put API keys or other secrets in
@@ -115,29 +122,41 @@ The frontend checks `status`, `is_blocked`, `session_id`, `response`, and
 is blocked. The displayed execution time is the proxy's timing, not a browser
 round-trip measurement.
 
-### Admin dashboard
+### Authentication and history
 
-The dashboard expects this JSON response from the Spring Boot API:
+Login and registration send `{ "username": "...", "password": "..." }` as JSON.
+The login response must include `token`, `accessToken`, or `access_token`.
+The token is stored in `localStorage` and sent as a Bearer token on chat,
+history, and admin API requests. Role claims named `role`, `roles`, or
+`authorities` control whether the admin tab is shown.
+
+The history endpoints are expected to return either a JSON array or an object
+with a `data` array (and optionally a `sessions`/`messages` property). Creating
+a new chat only generates a UUID in the browser; it does not call a create
+session endpoint.
+
+The backend currently contains `GET /api/v1/chat/{sessionId}/messages` and
+does not yet expose the list endpoint or the query-style messages endpoint
+configured above. Set `VITE_SESSIONS_API_URL` and `VITE_MESSAGES_API_URL` to
+the routes agreed with the backend, or add the requested routes there.
+
+### Admin audit dashboard
+
+The dashboard accepts either a direct alert array, an `ApiResponse` with an
+alert array in `data`, or an object containing `recentAlerts`/`alerts`. Alert
+rows support these fields:
 
 ```json
-{
-  "totalMessages": 120,
-  "blockedAttacks": 8,
-  "allowedMessages": 112,
-  "avgLatencyMs": 240,
-  "traffic": [
-    { "label": "09:00", "requests": 24, "blocked": 2 }
-  ],
-  "recentAlerts": [
-    {
-      "id": 1,
-      "createdAt": "2026-10-12T09:00:00",
-      "ipAddress": "127.0.0.1",
-      "label": "Prompt injection bị chặn",
-      "severity": "HIGH"
-    }
-  ]
-}
+[
+  {
+    "id": 1,
+    "createdAt": "2026-10-12T09:00:00",
+    "ipAddress": "127.0.0.1",
+    "threatType": "PROMPT_INJECTION",
+    "severityLevel": "HIGH",
+    "blockedPayload": "..."
+  }
+]
 ```
 
 The backend must enforce Admin authorization on this endpoint. Hiding a
