@@ -9,8 +9,32 @@ define user express greeting
   "hey"
 
 define bot express greeting
-  "Xin chào! Tôi là trợ lý AI an toàn được bảo vệ bởi NeMo Guardrails. Tôi có thể hỗ trợ gì cho bạn hôm nay?"
+  "Xin chào! Tôi có thể hỗ trợ gì cho bạn về bảo mật và an toàn thông tin hôm nay?"
 
 define flow greeting
   user express greeting
   bot express greeting
+
+# Kịch bản Tư vấn An toàn Thông tin & Kiến thức bảo mật & Hội thoại tiếp nối
+define user ask security advice
+  "vậy tôi có nên cung cấp thông tin cho một công an gọi video call cho tôi không"
+  "có người tự xưng là công an gọi video call hoặc điện thoại đe dọa"
+  "làm sao để nhận biết lừa đảo qua mạng"
+  "làm thế nào để phòng tránh bị hack tài khoản"
+  "tôi nhận được tin nhắn trúng thưởng có đường link lạ"
+  "cách nhận diện thủ đoạn lừa đảo deepfake và cuộc gọi giả danh"
+  "cách bảo vệ dữ liệu cá nhân trên internet"
+  "hướng dẫn đặt mật khẩu an toàn và bảo mật 2 lớp"
+  "tôi có nên gửi mã OTP cho người khác không"
+  "cú pháp của ngôn ngữ Colang được viết như thế nào"
+  "giải thích cách hoạt động của NeMo Guardrails"
+  "bạn có thể ví dụ của bạn được không"
+  "cho tôi xin ví dụ cụ thể hơn"
+  "giải thích chi tiết hơn cho tôi"
+  "tại sao lại như vậy"
+  "bạn có biết tôi là ai không"
+  "tôi tên là gì"
+
+define flow security advice
+  user ask security advice
+  bot respond

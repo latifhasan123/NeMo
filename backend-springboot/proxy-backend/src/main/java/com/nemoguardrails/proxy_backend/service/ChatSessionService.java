@@ -4,6 +4,7 @@ import com.nemoguardrails.proxy_backend.entity.ChatSessionEntity;
 import com.nemoguardrails.proxy_backend.repository.ChatSessionRepository;
 import org.springframework.stereotype.Service;
 
+import java.util.List;
 import java.util.Optional;
 
 @Service
@@ -13,6 +14,11 @@ public class ChatSessionService {
 
     public ChatSessionService(ChatSessionRepository chatSessionRepository) {
         this.chatSessionRepository = chatSessionRepository;
+    }
+
+    // Lấy tất cả phiên chat sắp xếp phiên mới nhất lên đầu
+    public List<ChatSessionEntity> getAllSessions() {
+        return chatSessionRepository.findAllByOrderByIdDesc();
     }
 
     // Lấy phiên chat dựa vào mã UUID

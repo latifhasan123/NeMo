@@ -74,6 +74,33 @@ class ChatResponse(BaseModel):
 
 
 BACKEND_LOG_URL = "http://localhost:8080/api/v1/alerts"
+BACKEND_CHAT_RECORD_URL = "http://localhost:8080/api/v1/chat/record"
+BACKEND_MESSAGES_URL = "http://localhost:8080/api/v1/chat/messages"
+
+
+def get_session_history(session_uuid: str, limit: int = 6):
+    """
+    Lấy các tin nhắn trước đó của phiên chat từ Backend để AI có ngữ cảnh trò chuyện liên tục
+    """
+    if not session_uuid:
+        return []
+    try:
+        url = f"{BACKEND_MESSAGES_URL}?sessionId={session_uuid}"
+        response = requests.get(url, timeout=1.5)
+        if response.status_code == 200:
+            payload = response.json()
+            data = payload.get("data", []) if isinstance(payload, dict) else []
+            history = []
+            recent_msgs = data[-limit:] if len(data) > limit else data
+            for item in recent_msgs:
+                role = "user" if item.get("senderRole") in ["user", "human"] else "assistant"
+                content = item.get("content", "")
+                if content and isinstance(content, str) and content.strip():
+                    history.append({"role": role, "content": content.strip()})
+            return history
+    except Exception as e:
+        print(f"-> [THÔNG BÁO] Không thể lấy lịch sử phiên chat cũ: {e}")
+    return []
 
 
 def send_log_to_backend(payload: dict):
@@ -87,6 +114,15 @@ def send_log_to_backend(payload: dict):
         print("-> [LỖI] Backend phản hồi quá chậm (quá 3 giây). Đã hủy gửi log để không block luồng!\n")
     except requests.exceptions.RequestException as e:
         print(f"-> [LỖI] Không thể kết nối Backend (Khả năng Nhóm trưởng chưa bật server): {e}\n")
+
+
+def save_chat_to_backend(payload: dict):
+    try:
+        response = requests.post(BACKEND_CHAT_RECORD_URL, json=payload, timeout=2.0)
+        if response.status_code == 200:
+            print(f"-> [LỊCH SỬ CHAT] Đã tự động lưu phiên chat '{payload.get('sessionUuid')}' sang Spring Boot Backend.")
+    except Exception as e:
+        print(f"-> [THÔNG BÁO] Không thể lưu phiên chat sang Backend: {e}")
 
 
 # Bản đồ nhận diện câu từ chối từ kịch bản Colang (.co)
@@ -114,10 +150,12 @@ async def process_chat(request: ChatRequest, background_tasks: BackgroundTasks):
     start_time = time.time()
 
     try:
-        # 1. Nhận kết quả từ Guardrails (gọi tới LLM gemini-1.5-flash hoặc chạy dialog flows)
-        response = await rails.generate_async(
-            messages=[{"role": "user", "content": request.message}]
-        )
+        # Lấy lịch sử hội thoại trước đó để AI có ngữ cảnh trò chuyện liên tục (Multi-turn Memory)
+        conversation_messages = get_session_history(request.session_id, limit=6)
+        conversation_messages.append({"role": "user", "content": request.message})
+
+        # 1. Nhận kết quả từ Guardrails (gọi tới LLM gemini kèm toàn bộ ngữ cảnh hội thoại)
+        response = await rails.generate_async(messages=conversation_messages)
         
         try:
             print("\nDEBUG KẾT QUẢ TỪ AI:", response)
@@ -143,6 +181,17 @@ async def process_chat(request: ChatRequest, background_tasks: BackgroundTasks):
             if check["keyword"] in lower_response:
                 matched_check = check
                 break
+
+        # 4. Tự động lưu phiên chat và tin nhắn sang Spring Boot Backend trước khi trả về
+        chat_payload = {
+            "username": request.user_id,
+            "sessionUuid": request.session_id,
+            "userMessage": request.message,
+            "botResponse": response_text,
+            "latencyMs": int(execution_time),
+            "isBlocked": matched_check is not None
+        }
+        save_chat_to_backend(chat_payload)
 
         if matched_check:
             threat_type = matched_check["threat_type"]
