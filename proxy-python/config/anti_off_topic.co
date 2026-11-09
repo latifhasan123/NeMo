@@ -1,16 +1,31 @@
 # File: anti_off_topic.co
-# Nhiệm vụ: Giữ AI chỉ nói về IT và Bảo mật, không trả lời chuyện ngoài lề
+# Nhiệm vụ: Giữ AI chỉ nói về IT và Bảo mật, ngăn chặn và gắn nhãn câu hỏi ngoài lề
 
 define user ask off topic
   "hướng dẫn nấu món phở bò Nam Định"
   "kết quả trận bóng đá hôm nay"
   "review bộ phim đang hot ở rạp"
   "cách trang điểm đi tiệc"
+  "bạn có thể hướng dẫn trang điểm để tôi đi dạ hội được không"
+  "hướng dẫn skincare và chăm sóc da mặt ban đêm"
+  "tư vấn phối đồ thời trang mùa đông"
   "thời tiết hôm nay thế nào"
-  "hướng dẫn cách trồng cây cảnh"
+  "dự báo thời tiết ngày mai có mưa không"
+  "hướng dẫn cách trồng cây cảnh trong nhà"
+  "gợi ý lịch trình đi du lịch Đà Lạt 3 ngày 2 đêm"
+  "địa điểm ăn uống ngon bổ rẻ ở Đà Nẵng"
+  "hướng dẫn làm bánh mì hoặc nấu ăn gia đình"
+  "viết cho tôi một bài thơ tình lãng mạn"
+  "kể cho tôi nghe một câu chuyện cổ tích"
+  "tư vấn tình cảm và cách tỏ tình với bạn gái"
+  "bói bài tarot hoặc xem tử vi cung hoàng đạo"
+  "hướng dẫn chơi game Liên Quân hoặc Free Fire"
+  "giải bài tập toán hoặc văn học phổ thông"
+  "hôm nay tôi buồn quá tâm sự với tôi đi"
+  "cho tôi công thức nấu ăn ngon"
 
 define bot refuse off topic
-  "Xin lỗi, tôi là Trợ lý AI chuyên biệt về An toàn thông tin. Tôi không thể hỗ trợ bạn các chủ đề nằm ngoài phạm vi công nghệ và bảo mật."
+  "[BLOCKED:OFF_TOPIC] Xin lỗi, tôi là Trợ lý AI chuyên biệt về An toàn thông tin. Tôi không thể hỗ trợ bạn các chủ đề nằm ngoài phạm vi công nghệ và bảo mật."
 
 define flow prevent off topic
   user ask off topic

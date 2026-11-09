@@ -1,8 +1,11 @@
 import { useCallback, useEffect, useRef, useState } from 'react'
 import './App.css'
+import ConfirmModal from './components/ConfirmModal'
 import Sidebar from './components/Sidebar'
+import { BrandLogo } from './components/Icons'
 import ChatPage from './pages/ChatPage'
 import DashboardPage from './pages/DashboardPage'
+import { readApiPayload } from './utils/api'
 
 const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || 'http://localhost:8080'
 const PROXY_URL = import.meta.env.VITE_PROXY_URL || 'http://localhost:8000/api/v1/chat'
@@ -11,6 +14,7 @@ const REGISTER_API_URL = import.meta.env.VITE_REGISTER_API_URL || `${API_BASE_UR
 const SESSIONS_API_URL = import.meta.env.VITE_SESSIONS_API_URL || `${API_BASE_URL}/api/v1/chat/sessions`
 const MESSAGES_API_URL = import.meta.env.VITE_MESSAGES_API_URL || `${API_BASE_URL}/api/v1/chat/messages`
 const ADMIN_API_URL = import.meta.env.VITE_ADMIN_API_URL || `${API_BASE_URL}/api/v1/alerts`
+const USERS_API_URL = import.meta.env.VITE_USERS_API_URL || `${API_BASE_URL}/api/v1/users`
 const USER_ID = import.meta.env.VITE_DEMO_USER_ID || 'usr_123'
 
 function parseJwt(token) {
@@ -54,23 +58,6 @@ function createSessionId() {
   return `${hex.slice(0, 8)}-${hex.slice(8, 12)}-${hex.slice(12, 16)}-${hex.slice(16, 20)}-${hex.slice(20)}`
 }
 
-async function readApiPayload(response) {
-  let payload
-  try {
-    payload = await response.json()
-  } catch {
-    throw new Error(`Máy chủ trả về dữ liệu không hợp lệ (HTTP ${response.status}).`)
-  }
-
-  if (!response.ok) {
-    throw new Error(payload?.message || payload?.detail || `Máy chủ trả về HTTP ${response.status}.`)
-  }
-  if (payload?.status === 'error') {
-    throw new Error(payload.message || 'Yêu cầu không thành công.')
-  }
-  return payload?.data ?? payload
-}
-
 function mapHistoryMessage(message, index) {
   const role = message.role || message.senderRole || message.sender_role || 'assistant'
   return {
@@ -92,6 +79,10 @@ function getJwtRole(claims) {
   return roles.includes('ADMIN')
 }
 
+function getSessionIdentifier(session) {
+  return session?.session_uuid || session?.sessionUuid || session?.sessionId || session?.id
+}
+
 export default function App() {
   const [token, setToken] = useState(getStoredToken)
   const [authMode, setAuthMode] = useState('login')
@@ -102,6 +93,16 @@ export default function App() {
   const [isAuthenticating, setIsAuthenticating] = useState(false)
 
   const [page, setPage] = useState('chat')
+  const [isSidebarCollapsed, setIsSidebarCollapsed] = useState(false)
+  const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false)
+  const [guardrailsEnabled, setGuardrailsEnabled] = useState(() => {
+    try {
+      return localStorage.getItem('guardrailsEnabled') !== 'false'
+    } catch {
+      return true
+    }
+  })
+
   const [sessions, setSessions] = useState([])
   const [sessionError, setSessionError] = useState('')
   const [currentSessionId, setCurrentSessionId] = useState(null)
@@ -114,11 +115,20 @@ export default function App() {
   const [dashboard, setDashboard] = useState(null)
   const [dashboardError, setDashboardError] = useState('')
   const [isLoadingDashboard, setIsLoadingDashboard] = useState(false)
+
+  const [deleteModal, setDeleteModal] = useState(null)
+  const [isDeleting, setIsDeleting] = useState(false)
+  const [deleteError, setDeleteError] = useState('')
+  const [toast, setToast] = useState(null)
+
   const endOfMessages = useRef(null)
   const historyRequestId = useRef(0)
+  const toastTimerRef = useRef(null)
 
   const claims = token ? parseJwt(token) : null
   const isAdmin = getJwtRole(claims)
+  const displayUsername = claims?.username || claims?.sub || username || 'Bạn'
+
   const authorizationHeaders = useCallback(
     (headers = {}) => ({ ...headers, Authorization: `Bearer ${token}` }),
     [token],
@@ -203,18 +213,29 @@ export default function App() {
 
   function handleLogout() {
     localStorage.removeItem('accessToken')
+    historyRequestId.current += 1
     setToken('')
     setPage('chat')
     setSessions([])
+    setSessionError('')
     setMessages([])
+    setIsLoadingHistory(false)
     setCurrentSessionId(null)
+    setDraft('')
+    setChatError('')
+    setLastLatency(null)
     setDashboard(null)
+    setDashboardError('')
+    setDeleteModal(null)
+    setDeleteError('')
+    setIsMobileMenuOpen(false)
   }
 
   async function handleSelectSession(sessionId) {
     if (!sessionId) return
     const requestId = historyRequestId.current + 1
     historyRequestId.current = requestId
+    setPage('chat')
     setCurrentSessionId(sessionId)
     setMessages([])
     setChatError('')
@@ -240,6 +261,32 @@ export default function App() {
     }
   }
 
+  const showToast = useCallback((text, tone = 'info') => {
+    if (toastTimerRef.current) clearTimeout(toastTimerRef.current)
+    setToast({ text, tone })
+    toastTimerRef.current = setTimeout(() => {
+      setToast(null)
+    }, 3000)
+  }, [])
+
+  const handleToggleGuardrails = useCallback(() => {
+    setGuardrailsEnabled((prev) => {
+      const next = !prev
+      try {
+        localStorage.setItem('guardrailsEnabled', String(next))
+      } catch {
+        // Ignore storage restriction
+      }
+      showToast(
+        next
+          ? 'Đã bật NeMo Guardrails — Tường lửa bảo mật đang bảo vệ cuộc trò chuyện.'
+          : 'Đã tắt NeMo Guardrails (Chế độ Demo) — Prompt sẽ đi thẳng tới LLM.',
+        next ? 'success' : 'warning',
+      )
+      return next
+    })
+  }, [showToast])
+
   function handleNewChat() {
     historyRequestId.current += 1
     setCurrentSessionId(createSessionId())
@@ -249,6 +296,68 @@ export default function App() {
     setChatError('')
     setLastLatency(null)
     setPage('chat')
+    fetchSessions()
+  }
+
+  function handleRequestDeleteSession(sessionId, title) {
+    setDeleteError('')
+    setDeleteModal({ mode: 'single', sessionId, title })
+  }
+
+  function handleRequestClearSessions() {
+    setDeleteError('')
+    setDeleteModal({ mode: 'all' })
+  }
+
+  async function handleConfirmDelete() {
+    if (!deleteModal || isDeleting) return
+    setIsDeleting(true)
+    setDeleteError('')
+
+    try {
+      if (deleteModal.mode === 'single') {
+        const targetId = deleteModal.sessionId
+        const response = await fetch(`${SESSIONS_API_URL}/${encodeURIComponent(targetId)}`, {
+          method: 'DELETE',
+          headers: authorizationHeaders(),
+        })
+        await readApiPayload(response)
+
+        setSessions((prev) =>
+          prev.filter((item) => String(getSessionIdentifier(item)) !== String(targetId)),
+        )
+        if (String(currentSessionId) === String(targetId)) {
+          historyRequestId.current += 1
+          setCurrentSessionId(createSessionId())
+          setMessages([])
+          setIsLoadingHistory(false)
+          setChatError('')
+          setLastLatency(null)
+        }
+        setDeleteModal(null)
+        showToast('Đã xóa cuộc trò chuyện.', 'success')
+      } else {
+        const response = await fetch(SESSIONS_API_URL, {
+          method: 'DELETE',
+          headers: authorizationHeaders(),
+        })
+        await readApiPayload(response)
+
+        setSessions([])
+        historyRequestId.current += 1
+        setCurrentSessionId(createSessionId())
+        setMessages([])
+        setIsLoadingHistory(false)
+        setChatError('')
+        setLastLatency(null)
+        setDeleteModal(null)
+        showToast('Đã xóa toàn bộ lịch sử trò chuyện.', 'success')
+      }
+    } catch (error) {
+      setDeleteError(`Không thể xóa lịch sử chat: ${error.message}`)
+    } finally {
+      setIsDeleting(false)
+    }
   }
 
   async function handleSendMessage(event) {
@@ -271,10 +380,11 @@ export default function App() {
         method: 'POST',
         headers: authorizationHeaders({ 'Content-Type': 'application/json' }),
         body: JSON.stringify({
-          user_id: claims?.sub || USER_ID,
+          user_id: claims?.username || claims?.sub || USER_ID,
           session_id: sessionId,
           message: text,
           client_ip: '127.0.0.1',
+          guardrails_enabled: guardrailsEnabled,
         }),
       })
       const result = await readApiPayload(response)
@@ -297,12 +407,19 @@ export default function App() {
           content: result.response,
           blocked: result.is_blocked === true || result.status === 'blocked',
           reason: [result.block_reason, result.threat_type].filter(Boolean).join(' · '),
+          guardrailsEnabled: result.guardrails_enabled ?? guardrailsEnabled,
           latencyMs: validLatency,
         },
       ])
       fetchSessions()
     } catch (error) {
-      setChatError(`Không gửi được tin nhắn: ${error.message} Kiểm tra Proxy tại ${PROXY_URL}.`)
+      const msg = error?.message || 'Lỗi kết nối.'
+      const isAccountLocked = msg.toLowerCase().includes('bị khóa') || msg.toLowerCase().includes('quản trị viên khóa')
+      setChatError(
+        isAccountLocked
+          ? msg
+          : `Không gửi được tin nhắn: ${msg} Kiểm tra Proxy tại ${PROXY_URL}.`,
+      )
     } finally {
       setIsSending(false)
     }
@@ -312,9 +429,14 @@ export default function App() {
     setIsLoadingDashboard(true)
     setDashboardError('')
     try {
-      const response = await fetch(ADMIN_API_URL, {
+      let response = await fetch(`${ADMIN_API_URL}/analytics`, {
         headers: authorizationHeaders(),
       })
+      if (response.status === 404) {
+        response = await fetch(ADMIN_API_URL, {
+          headers: authorizationHeaders(),
+        })
+      }
       const payload = await readApiPayload(response)
       const alerts = Array.isArray(payload)
         ? payload
@@ -344,33 +466,39 @@ export default function App() {
     return (
       <main className="auth-page">
         <form className="auth-card" onSubmit={handleAuthentication}>
-          <div className="auth-brand-mark" aria-hidden="true">🛡️</div>
-          <p className="eyebrow">AI SECURITY WORKSPACE</p>
+          <div className="auth-logo-wrap">
+            <BrandLogo size={46} />
+          </div>
+          <p className="eyebrow">SENTINEL AI · GUARDRAILS</p>
           <h1>{isRegistering ? 'Tạo tài khoản' : 'Đăng nhập hệ thống'}</h1>
           <p className="auth-description">
-            {isRegistering ? 'Đăng ký để bắt đầu sử dụng không gian bảo mật AI.' : 'Đăng nhập để tiếp tục cuộc trò chuyện an toàn.'}
+            {isRegistering
+              ? 'Đăng ký để trải nghiệm trợ lý AI được bảo vệ bởi NeMo Guardrails.'
+              : 'Đăng nhập để tiếp tục cuộc trò chuyện an toàn.'}
           </p>
           {authError && <div className="error-banner auth-message" role="alert">{authError}</div>}
           {authNotice && <div className="success-banner auth-message" role="status">{authNotice}</div>}
-          <label htmlFor="username">Username</label>
+          <label htmlFor="username">Tên đăng nhập</label>
           <input
             id="username"
             autoComplete="username"
+            placeholder="Nhập username..."
             value={username}
             onChange={(event) => setUsername(event.target.value)}
             required
           />
-          <label htmlFor="password">Password</label>
+          <label htmlFor="password">Mật khẩu</label>
           <input
             id="password"
             type="password"
             autoComplete={isRegistering ? 'new-password' : 'current-password'}
+            placeholder="Nhập mật khẩu..."
             value={password}
             onChange={(event) => setPassword(event.target.value)}
             required
           />
           <button className="auth-submit" type="submit" disabled={isAuthenticating}>
-            {isAuthenticating ? 'Đang xử lý...' : isRegistering ? 'Đăng ký' : 'Đăng nhập'}
+            {isAuthenticating ? 'Đang xử lý...' : isRegistering ? 'Đăng ký tài khoản' : 'Đăng nhập'}
           </button>
           <button
             className="auth-switch"
@@ -381,7 +509,7 @@ export default function App() {
               setAuthNotice('')
             }}
           >
-            {isRegistering ? 'Đã có tài khoản? Đăng nhập' : 'Chưa có tài khoản? Đăng ký'}
+            {isRegistering ? 'Đã có tài khoản? Đăng nhập ngay' : 'Chưa có tài khoản? Đăng ký mới'}
           </button>
         </form>
       </main>
@@ -397,10 +525,18 @@ export default function App() {
         currentSessionId={currentSessionId}
         onSelectSession={handleSelectSession}
         onNewChat={handleNewChat}
+        onRequestDeleteSession={handleRequestDeleteSession}
+        onRequestClearSessions={handleRequestClearSessions}
+        guardrailsEnabled={guardrailsEnabled}
+        onToggleGuardrails={handleToggleGuardrails}
         isAdmin={isAdmin}
-        username={claims?.username || claims?.sub || username || 'Người dùng'}
+        username={displayUsername}
         sessionError={sessionError}
         onLogout={handleLogout}
+        isCollapsed={isSidebarCollapsed}
+        onToggleCollapse={() => setIsSidebarCollapsed((prev) => !prev)}
+        isMobileOpen={isMobileMenuOpen}
+        onCloseMobile={() => setIsMobileMenuOpen(false)}
       />
       <main className="main-panel">
         {page === 'chat' ? (
@@ -415,6 +551,12 @@ export default function App() {
             endOfMessages={endOfMessages}
             onSendMessage={handleSendMessage}
             onNewChat={handleNewChat}
+            guardrailsEnabled={guardrailsEnabled}
+            onToggleGuardrails={handleToggleGuardrails}
+            username={displayUsername}
+            isSidebarCollapsed={isSidebarCollapsed}
+            onToggleSidebar={() => setIsSidebarCollapsed((prev) => !prev)}
+            onOpenMobileMenu={() => setIsMobileMenuOpen(true)}
           />
         ) : (
           <DashboardPage
@@ -422,9 +564,45 @@ export default function App() {
             error={dashboardError}
             isLoading={isLoadingDashboard}
             onRefresh={fetchDashboard}
+            currentUsername={displayUsername}
+            authorizationHeaders={authorizationHeaders}
+            adminApiUrl={ADMIN_API_URL}
+            usersApiUrl={USERS_API_URL}
+            guardrailsEnabled={guardrailsEnabled}
+            onToggleGuardrails={handleToggleGuardrails}
+            onToast={showToast}
+            isSidebarCollapsed={isSidebarCollapsed}
+            onToggleSidebar={() => setIsSidebarCollapsed((prev) => !prev)}
+            onOpenMobileMenu={() => setIsMobileMenuOpen(true)}
           />
         )}
       </main>
+
+      <ConfirmModal
+        isOpen={Boolean(deleteModal)}
+        title={
+          deleteModal?.mode === 'all'
+            ? 'Xóa toàn bộ lịch sử trò chuyện?'
+            : 'Xóa cuộc trò chuyện này?'
+        }
+        description={
+          deleteModal?.mode === 'all'
+            ? `Thao tác này sẽ xóa vĩnh viễn toàn bộ ${sessions.length} cuộc trò chuyện khỏi cơ sở dữ liệu và không thể khôi phục. Nhật ký cảnh báo an ninh của Admin vẫn được giữ nguyên.`
+            : `Cuộc trò chuyện "${deleteModal?.title || ''}" và toàn bộ tin nhắn bên trong sẽ bị xóa vĩnh viễn và không thể khôi phục.`
+        }
+        confirmLabel={deleteModal?.mode === 'all' ? 'Xóa toàn bộ' : 'Xóa cuộc trò chuyện'}
+        loadingLabel="Đang xóa..."
+        isLoading={isDeleting}
+        error={deleteError}
+        onConfirm={handleConfirmDelete}
+        onCancel={() => setDeleteModal(null)}
+      />
+
+      {toast && (
+        <div className={`toast-banner ${toast.tone}`} role="status" aria-live="polite">
+          {toast.text}
+        </div>
+      )}
     </div>
   )
 }

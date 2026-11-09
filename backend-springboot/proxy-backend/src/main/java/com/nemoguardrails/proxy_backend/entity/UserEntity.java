@@ -1,5 +1,6 @@
 package com.nemoguardrails.proxy_backend.entity;
 
+import com.fasterxml.jackson.annotation.JsonIgnore;
 import jakarta.persistence.*;
 import lombok.Getter;
 import lombok.Setter;
@@ -7,9 +8,9 @@ import lombok.Setter;
 import java.time.LocalDateTime;
 
 @Entity
-@Getter 
-@Setter 
-@Table(name = "users") // Vẫn giữ nguyên tên bảng trong MySQL
+@Getter
+@Setter
+@Table(name = "users")
 public class UserEntity {
 
     @Id
@@ -19,6 +20,7 @@ public class UserEntity {
     @Column(nullable = false, unique = true, length = 50)
     private String username;
 
+    @JsonIgnore
     @Column(name = "password_hash", nullable = false)
     private String passwordHash;
 
@@ -34,18 +36,14 @@ public class UserEntity {
     @Column(name = "updated_at")
     private LocalDateTime updatedAt;
 
-    // Tự động gán thời gian khi tạo mới
     @PrePersist
     protected void onCreate() {
         this.createdAt = LocalDateTime.now();
         this.updatedAt = LocalDateTime.now();
     }
 
-    // Tự động gán thời gian khi cập nhật
     @PreUpdate
     protected void onUpdate() {
         this.updatedAt = LocalDateTime.now();
     }
-
-    // TODO: Generate Getters and Setters
 }

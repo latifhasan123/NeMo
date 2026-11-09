@@ -1,27 +1,52 @@
-import React from 'react'
+import { ShieldAlertIcon } from './Icons'
+
+const THREAT_LABELS = {
+  JAILBREAK: 'JAILBREAK',
+  PROMPT_LEAKAGE: 'PROMPT LEAKAGE',
+  MALICIOUS_INTENT: 'MALICIOUS INTENT',
+  OFF_TOPIC: 'OFF-TOPIC',
+}
+
+function parseThreatInfo(reason) {
+  if (!reason) return { code: '', threatBadge: '' }
+  const parts = String(reason)
+    .split('·')
+    .map((part) => part.trim())
+    .filter(Boolean)
+
+  const threatKey = parts.find((part) => THREAT_LABELS[part]) || ''
+  const code = parts.find((part) => !THREAT_LABELS[part]) || parts[0] || ''
+
+  return {
+    code,
+    threatBadge: THREAT_LABELS[threatKey] || threatKey,
+  }
+}
 
 export default function SecurityAlert({ content, reason }) {
+  const { code, threatBadge } = parseThreatInfo(reason)
+
   return (
-    <div style={{
-      background: '#fff5f5',
-      border: '1px solid #feb2b2',
-      borderRadius: '8px',
-      padding: '12px 16px',
-      color: '#c53030',
-      marginTop: '8px',
-      boxShadow: '0 2px 4px rgba(0,0,0,0.05)'
-    }}>
-      <div style={{ display: 'flex', alignItems: 'center', gap: '8px', fontWeight: 'bold', fontSize: '14px' }}>
-        <span>⚑</span>
-        <span>[BLOCKED] PROMPT INJECTION DETECTED</span>
+    <div className="security-alert-card" role="status" aria-label="Cảnh báo bảo mật">
+      <div className="security-alert-header">
+        <div className="security-alert-title">
+          <span className="security-alert-icon">
+            <ShieldAlertIcon size={17} />
+          </span>
+          <strong>[BLOCKED] YÊU CẦU BỊ NGĂN CHẶN</strong>
+        </div>
+        {threatBadge && <span className="security-threat-badge">{threatBadge}</span>}
       </div>
-      <p style={{ margin: '6px 0 0', fontSize: '13px', color: '#9b2c2c', lineHeight: 1.5 }}>
-        {content || 'Yêu cầu bị ngăn chặn do phát hiện nguy cơ tấn công an ninh thông tin.'}
+
+      <p className="security-alert-body">
+        {content || 'Yêu cầu bị ngăn chặn do phát hiện vi phạm chính sách an toàn thông tin.'}
       </p>
-      {reason && (
-        <small style={{ display: 'block', marginTop: '6px', color: '#e53e3e', fontSize: '11px', fontStyle: 'italic' }}>
-          Mã kiểm duyệt: {reason}
-        </small>
+
+      {code && (
+        <div className="security-alert-meta">
+          <span>Mã kiểm duyệt:</span>
+          <code>{code}</code>
+        </div>
       )}
     </div>
   )

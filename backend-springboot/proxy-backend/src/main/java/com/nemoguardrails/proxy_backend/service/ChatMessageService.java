@@ -71,28 +71,23 @@ public class ChatMessageService {
             return;
         }
 
-        // 1. Tìm User sở hữu phiên này
-        UserEntity user = null;
-        if (dto.getUsername() != null && !dto.getUsername().trim().isEmpty()) {
-            user = userRepository.findByUsername(dto.getUsername().trim()).orElse(null);
-        }
+        String sessionUuid = dto.getSessionUuid().trim();
+        String requestedUsername = dto.getUsername() != null ? dto.getUsername().trim() : "";
+
+        // 1. Tìm đúng User sở hữu phiên này (không tự ý gán sang tài khoản đầu tiên trong DB gây rò rỉ lịch sử)
+        UserEntity user = !requestedUsername.isEmpty()
+                ? userRepository.findByUsernameIgnoreCase(requestedUsername).orElse(null)
+                : null;
         if (user == null) {
-            user = userRepository.findAll().stream().findFirst().orElse(null);
-            if (user == null) {
-                user = new UserEntity();
-                user.setUsername(dto.getUsername() != null ? dto.getUsername() : "user");
-                user.setPasswordHash("123456");
-                user.setRole("ROLE_USER");
-                user.setIsActive(true);
-                user = userRepository.save(user);
-            }
+            throw new IllegalArgumentException(
+                    "Không xác định được tài khoản hợp lệ để lưu lịch sử chat: " + requestedUsername);
         }
 
-        // 2. Tìm hoặc tạo mới ChatSession
-        ChatSessionEntity session = chatSessionRepository.findBySessionUuid(dto.getSessionUuid()).orElse(null);
+        // 2. Tìm hoặc tạo mới ChatSession (chặn ghi chèn vào phiên chat của người dùng khác)
+        ChatSessionEntity session = chatSessionRepository.findBySessionUuid(sessionUuid).orElse(null);
         if (session == null) {
             session = new ChatSessionEntity();
-            session.setSessionUuid(dto.getSessionUuid());
+            session.setSessionUuid(sessionUuid);
             session.setUser(user);
 
             // Đặt tên phiên chat theo câu hỏi đầu tiên của người dùng
@@ -102,6 +97,10 @@ public class ChatMessageService {
             }
             session.setSessionName(title != null && !title.trim().isEmpty() ? title.trim() : "Cuộc trò chuyện mới");
             session = chatSessionRepository.save(session);
+        } else if (session.getUser() != null
+                && session.getUser().getUsername() != null
+                && !session.getUser().getUsername().equalsIgnoreCase(user.getUsername())) {
+            throw new SecurityException("Phiên chat thuộc về một tài khoản khác.");
         }
 
         // 3. Lưu tin nhắn của User
