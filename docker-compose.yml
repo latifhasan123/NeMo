@@ -10,7 +10,8 @@ services:
       MYSQL_DATABASE: nemo
       MYSQL_ROOT_PASSWORD: "123456"
     ports:
-      - "3306:3306"
+      # Map sang 3307 trên máy host để tránh đụng MySQL/XAMPP cài sẵn ở cổng 3306 (bên trong Docker backend vẫn gọi mysql:3306)
+      - "3307:3306"
     command:
       - --character-set-server=utf8mb4
       - --collation-server=utf8mb4_unicode_ci
