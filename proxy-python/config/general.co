@@ -34,3 +34,27 @@ define user ask security advice
 define flow security advice
   user ask security advice
   bot respond
+
+# Chốt chặn Ngữ nghĩa Ngữ cảnh trong NeMo Input Rail (Enterprise Context-Aware Guardrail)
+define flow enterprise input security rail
+  $verdict = execute evaluate_input_security
+
+  if $verdict == "JAILBREAK"
+    execute log_security_event(event_type="JAILBREAK_ATTEMPT")
+    bot refuse jailbreak
+    stop
+
+  if $verdict == "PROMPT_LEAKAGE"
+    execute log_security_event(event_type="PROMPT_LEAKAGE_ATTEMPT")
+    bot protect prompt
+    stop
+
+  if $verdict == "MALICIOUS_INTENT"
+    execute log_security_event(event_type="MALICIOUS_INTENT")
+    bot refuse malicious
+    stop
+
+  if $verdict == "OFF_TOPIC"
+    execute log_security_event(event_type="OFF_TOPIC")
+    bot refuse off topic
+    stop
